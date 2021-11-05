@@ -30,7 +30,8 @@ st.set_page_config(
     menu_items=None
 )
 
-model= load_model("cnn_pneu_vamp_model.h5")
+model_path = r"Medical-Diagnosis-Platform/Models/Pneumonia_Keras_Model/Pneumonia_Keras_Model.h5"
+model= load_model(model_path)
 
 st.title("Medical Diagnosis Platform")
 

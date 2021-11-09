@@ -2,12 +2,13 @@ import streamlit as st
 import time
 
 import numpy as np
-from PIL import Image
-from tensorflow.keras.models import load_model
-import tensorflow as tf
+from PIL import Image, ImageOps
 
 from tempfile import NamedTemporaryFile
-from tensorflow.keras.preprocessing import image
+
+import onnxruntime
+from onnx import numpy_helper
+import json
 
 available_diseases = [
     "Pneumonia Prediction (from X-Ray)",
@@ -30,8 +31,8 @@ st.set_page_config(
     menu_items=None
 )
 
-model_path = r"Medical-Diagnosis-Platform/Models/Pneumonia_Keras_Model/Pneumonia_Keras_Model.h5"
-model= load_model(model_path)
+model_path = r"Medical-Diagnosis-Platform/Models/Pneumonia Onnx Model/Pneumonia_Onnx_Model.onnx"
+
 
 st.title("Medical Diagnosis Platform")
 
@@ -74,7 +75,8 @@ if buffer:
     temp_file.write(buffer.getvalue())
     
     try:
-      st.write(image.load_img(temp_file.name))
+      st.write(buffer)
+      #st.write(image.load_img(temp_file.name))
     except:
       file_status.error("Oops... this does seem to be an image file")
       flag = 1
@@ -82,20 +84,39 @@ if buffer:
 
 def temp(output):
   file_status_2.success("Your prediction are reading... Have a look above")
-  if output[0][0] >= 0.5:
-      confidence = round((output[0][0])*100, 2)
+  if output[0][0][0] >= 0.5:
+      confidence = round((output[0][0][0])*100, 2)
       output_text.error(f"This seems to be the case of pneumonia... I am {confidence}% sure")
   else:
-      confidence = round((1-output[0][0])*100, 2)
+      confidence = round((1-output[0][0][0])*100, 2)
       output_text.success(f"This seems to be a normal case... I am {confidence}% sure")
 
 
 if not (buffer == None) and (flag == 0):
     file_status.image(buffer)
     file_status_2.warning("Your file is uploaded... Please wait while we predict the output")
-    img = image.load_img(temp_file.name, target_size=(500, 500), color_mode='grayscale')
-    img = image.img_to_array(img)
+    img = Image.open(buffer)
+    img = ImageOps.grayscale(img)
+    img = img.resize((500, 500))
+    img = np.array(img)
+    
     img = img/255
     img = np.expand_dims(img, axis=0)
-    output = model.predict(img)
-    temp(output)
+    img = np.expand_dims(img, axis=0)
+    img = img.reshape((1, 500, 500, 1))
+
+    data = json.dumps({'data': img.tolist()})
+    data = np.array(json.loads(data)['data']).astype('float32')
+
+    data = json.dumps({'data': img.tolist()})
+    data = np.array(json.loads(data)['data']).astype('float32')
+    session = onnxruntime.InferenceSession(model_path, None)
+    input_name = session.get_inputs()[0].name
+    output_name = session.get_outputs()[0].name
+    print(input_name)
+    print(output_name)
+
+    result = session.run([output_name], {input_name: data})
+    result = np.array(result)
+    result = result.tolist()
+    temp(result)
